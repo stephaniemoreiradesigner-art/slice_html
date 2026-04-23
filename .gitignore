@@ -1,0 +1,18 @@
+# Dependências
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Variáveis de ambiente (NUNCA enviar para o GitHub)
+server/.env
+client/.env.local
+client/.env.production
+
+# Build
+client/dist/
+client/.vite/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
