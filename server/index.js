@@ -7,7 +7,7 @@ const sliceRouter = require('./routes/slice');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware — aceita localhost em dev e a URL do Vercel em produção
+// Middleware — aceita localhost em dev e a URL do frontend em produção
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.CLIENT_URL, // ex: https://slicermail.vercel.app
@@ -44,14 +44,20 @@ app.use('/api/slice', upload.single('image'), sliceRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
+  const storageBucket = process.env.SUPABASE_STORAGE_BUCKET || 'email-assets';
   const configured =
-    process.env.CLOUDINARY_CLOUD_NAME !== 'seu_cloud_name_aqui' &&
-    !!process.env.CLOUDINARY_CLOUD_NAME;
+    process.env.SUPABASE_URL !== 'sua_url_supabase_aqui' &&
+    !!process.env.SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY !== 'sua_service_role_key_aqui' &&
+    !!process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    !!storageBucket;
 
   res.json({
     status: 'online',
-    cloudinary: configured ? 'configurado' : 'aguardando configuração',
-    version: '1.0.0',
+    storage: configured
+      ? 'Supabase Storage configurado'
+      : 'Supabase Storage aguardando configuração',
+    version: '1.1.0',
   });
 });
 

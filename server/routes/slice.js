@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const sharp = require('sharp');
-const { uploadBuffer } = require('../config/cloudinary');
+const { uploadBuffer } = require('../config/supabaseStorage');
 
 /**
  * Dado um array de zonas, gera uma grade de células
@@ -64,7 +64,7 @@ function generateEmailHTML(gridRows, totalWidth) {
   for (const row of gridRows) {
     html += '\n  <tr>';
     for (const cell of row) {
-      const imgTag = `<img src="${cell.cloudinaryUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
+      const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
 
       const content = cell.link
         ? `<a href="${cell.link}" target="_blank" style="display:block;text-decoration:none;border:0;">${imgTag}</a>`
@@ -110,7 +110,7 @@ router.post('/', async (req, res) => {
     // Gera grade de células
     const gridRows = buildGrid(zones, imgWidth, imgHeight);
 
-    // Processa cada célula: crop + upload para Cloudinary
+    // Processa cada célula: crop + upload para o Supabase Storage
     let uploadCount = 0;
     const totalCells = gridRows.reduce((sum, row) => sum + row.length, 0);
 
@@ -127,9 +127,9 @@ router.post('/', async (req, res) => {
           .toBuffer();
 
         const uploadResult = await uploadBuffer(cropBuffer);
-        cell.cloudinaryUrl = uploadResult.secure_url;
+        cell.imageUrl = uploadResult.secure_url;
         uploadCount++;
-        console.log(`Célula ${uploadCount}/${totalCells} enviada para Cloudinary.`);
+        console.log(`Célula ${uploadCount}/${totalCells} enviada para o Supabase Storage.`);
       }
     }
 
