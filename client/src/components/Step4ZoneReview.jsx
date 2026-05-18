@@ -130,6 +130,18 @@ export default function Step4ZoneReview({ zones, imageUrl, onZonesChange, onNext
                           placeholder="https://seusite.com/pagina"
                           className="input-field text-sm"
                         />
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%'].map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setEditValues((v) => ({ ...v, link: v.link + tag }))}
+                              className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div>
                         <label className="text-xs text-slate-400 mb-1 block">Alt text</label>

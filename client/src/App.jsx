@@ -33,7 +33,7 @@ export default function App() {
   const [imageUrl, setImageUrl] = useState(null);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [zones, setZones] = useState([]);
-  const [settings, setSettings] = useState({ altText: '', campaign: '' });
+  const [settings, setSettings] = useState({ altText: '', campaign: '', headerHtml: '', footerHtml: '' });
   const [htmlResult, setHtmlResult] = useState('');
 
   const goTo = (n) => setStep(n);
@@ -119,6 +119,7 @@ export default function App() {
         return (
           <Step7Result
             html={htmlResult}
+            settings={settings}
             onNext={next}
             onBack={() => goTo(5)}
           />

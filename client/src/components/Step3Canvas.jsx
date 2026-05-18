@@ -424,6 +424,18 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
                           placeholder="https://seusite.com/pagina"
                           className="input-field text-sm py-2"
                         />
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%'].map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setLinkInput((prev) => prev + tag)}
+                              className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div>
                         <label className="text-xs text-slate-400 mb-1 block">

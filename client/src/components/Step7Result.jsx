@@ -1,13 +1,22 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 
-export default function Step7Result({ html, onNext, onBack }) {
+const AC_TAGS = ['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%', '%PHONE%', '%ORGNAME%'];
+
+export default function Step7Result({ html, settings, onNext, onBack }) {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('code'); // 'code' | 'preview'
 
+  const headerHtml = settings?.headerHtml?.trim() || '';
+  const footerHtml = settings?.footerHtml?.trim() || '';
+  const finalHtml = [headerHtml, html, footerHtml].filter(Boolean).join('\n');
+
+  const hasLayout = headerHtml || footerHtml;
+  const tagsUsed = AC_TAGS.filter((t) => finalHtml.includes(t));
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(html);
+      await navigator.clipboard.writeText(finalHtml);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
@@ -23,8 +32,8 @@ export default function Step7Result({ html, onNext, onBack }) {
     }
   };
 
-  const lineCount = html.split('\n').length;
-  const charCount = html.length;
+  const lineCount = finalHtml.split('\n').length;
+  const charCount = finalHtml.length;
 
   return (
     <div className="flex flex-col min-h-full px-6 py-8">
@@ -53,7 +62,7 @@ export default function Step7Result({ html, onNext, onBack }) {
         </div>
 
         {/* Stats */}
-        <div className="flex gap-4 mb-4">
+        <div className="flex flex-wrap gap-3 mb-4">
           {[
             { label: 'Linhas', value: lineCount },
             { label: 'Caracteres', value: charCount.toLocaleString('pt-BR') },
@@ -64,10 +73,26 @@ export default function Step7Result({ html, onNext, onBack }) {
               <span className="text-xs text-slate-500">{s.label}</span>
             </div>
           ))}
+          {hasLayout && (
+            <div className="card px-4 py-2.5 flex items-center gap-2 border-brand-500/30">
+              <svg className="w-3.5 h-3.5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              <span className="text-xs text-brand-400 font-medium">Layout personalizado</span>
+            </div>
+          )}
+          {tagsUsed.length > 0 && (
+            <div className="card px-4 py-2.5 flex items-center gap-2 border-emerald-500/20">
+              <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="text-xs text-emerald-400 font-medium">{tagsUsed.length} tag{tagsUsed.length > 1 ? 's' : ''} de personalização</span>
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-3 bg-slate-900 rounded-xl p-1 border border-slate-800 inline-flex">
+        <div className="inline-flex gap-1 mb-3 bg-slate-900 rounded-xl p-1 border border-slate-800">
           {[
             { id: 'code', label: 'Código HTML' },
             { id: 'preview', label: 'Pré-visualização' },
@@ -129,12 +154,12 @@ export default function Step7Result({ html, onNext, onBack }) {
           {activeTab === 'code' ? (
             <div className="overflow-auto" style={{ maxHeight: 480 }}>
               <pre className="p-5 text-sm text-slate-300 font-mono leading-relaxed whitespace-pre-wrap break-all">
-                <code>{html}</code>
+                <code>{finalHtml}</code>
               </pre>
             </div>
           ) : (
             <div className="p-4 overflow-auto bg-white" style={{ maxHeight: 480 }}>
-              <div dangerouslySetInnerHTML={{ __html: html }} />
+              <div dangerouslySetInnerHTML={{ __html: finalHtml }} />
             </div>
           )}
         </div>

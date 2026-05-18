@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 
 const ZONE_COLORS = [
@@ -5,8 +6,40 @@ const ZONE_COLORS = [
   '#8b5cf6', '#f97316', '#14b8a6', '#e11d48', '#84cc16',
 ];
 
+const AC_TAGS = [
+  { tag: '%FIRSTNAME%', label: 'Primeiro nome' },
+  { tag: '%LASTNAME%', label: 'Sobrenome' },
+  { tag: '%EMAIL%', label: 'E-mail' },
+  { tag: '%PHONE%', label: 'Telefone' },
+  { tag: '%ORGNAME%', label: 'Empresa' },
+  { tag: '%CITY%', label: 'Cidade' },
+  { tag: '%DATE%', label: 'Data' },
+];
+
 export default function Step5Settings({ settings, zones, imageUrl, imageDimensions, onSettingsChange, onNext, onBack }) {
   const totalWithLinks = zones.filter((z) => z.link).length;
+  const [activeField, setActiveField] = useState(null);
+  const headerRef = useRef(null);
+  const footerRef = useRef(null);
+
+  const insertTag = (tag) => {
+    const isHeader = activeField === 'header';
+    const ref = isHeader ? headerRef : footerRef;
+    const field = isHeader ? 'headerHtml' : 'footerHtml';
+    const textarea = ref.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const current = settings[field] || '';
+    const newValue = current.substring(0, start) + tag + current.substring(end);
+    onSettingsChange({ ...settings, [field]: newValue });
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + tag.length, start + tag.length);
+    }, 0);
+  };
 
   return (
     <div className="flex flex-col min-h-full px-6 py-8">
@@ -33,7 +66,7 @@ export default function Step5Settings({ settings, zones, imageUrl, imageDimensio
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 [&>*]:self-start">
           {/* Left: Summary */}
           <div className="space-y-4">
             {/* Image Info */}
@@ -90,7 +123,7 @@ export default function Step5Settings({ settings, zones, imageUrl, imageDimensio
             </div>
           </div>
 
-          {/* Right: Process Info */}
+          {/* Right: Process Info + Layout */}
           <div className="space-y-4">
             <div className="card p-5">
               <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
@@ -105,7 +138,7 @@ export default function Step5Settings({ settings, zones, imageUrl, imageDimensio
               <div className="space-y-3">
                 {[
                   { step: '1', text: 'A imagem será fatiada em células baseadas nas suas zonas', icon: '✂️' },
-                  { step: '2', text: 'Cada fatia será enviada ao Cloudinary automaticamente', icon: '☁️' },
+                  { step: '2', text: 'Cada fatia será enviada ao Supabase automaticamente', icon: '☁️' },
                   { step: '3', text: 'Um HTML com tabelas será gerado, compatível com Outlook', icon: '📧' },
                 ].map((item) => (
                   <div key={item.step} className="flex items-start gap-3">
@@ -135,6 +168,92 @@ export default function Step5Settings({ settings, zones, imageUrl, imageDimensio
                     <code className="text-xs text-slate-400">{rule}</code>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Layout personalizado */}
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text-slate-200 mb-1 flex items-center gap-2">
+                <div className="w-5 h-5 bg-brand-500/20 rounded-md flex items-center justify-center">
+                  <svg className="w-3 h-3 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                </div>
+                Incorporar layout via código
+                <span className="ml-auto text-xs text-slate-500 font-normal">opcional</span>
+              </h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Adicione HTML antes e/ou depois da imagem fatiada — útil para cabeçalhos, texto personalizado e rodapés.
+              </p>
+
+              {/* Merge tags — clique para inserir no campo ativo */}
+              <div className="mb-4 p-3 bg-slate-900/60 rounded-lg border border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-slate-400 font-medium">Tags do ActiveCampaign — clique para inserir:</p>
+                  {activeField ? (
+                    <span className="text-xs text-brand-400 font-medium">
+                      → {activeField === 'header' ? 'cabeçalho' : 'rodapé'}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-600 italic">clique num campo primeiro</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {AC_TAGS.map(({ tag, label }) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => insertTag(tag)}
+                      disabled={!activeField}
+                      title={activeField ? `Inserir ${tag}` : 'Clique num campo de texto primeiro'}
+                      className={`inline-flex items-center gap-1 text-xs rounded px-2 py-0.5 transition-all border ${
+                        activeField
+                          ? 'bg-slate-800 border-brand-500/40 hover:bg-brand-500/20 hover:border-brand-500 cursor-pointer'
+                          : 'bg-slate-800/50 border-slate-800 opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      <code className="text-brand-400">{tag}</code>
+                      <span className="text-slate-500">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">
+                    HTML <strong className="text-slate-300">antes</strong> da imagem
+                    <span className="ml-1 text-slate-600">(cabeçalho, saudação...)</span>
+                  </label>
+                  <textarea
+                    ref={headerRef}
+                    value={settings.headerHtml || ''}
+                    onChange={(e) => onSettingsChange({ ...settings, headerHtml: e.target.value })}
+                    onFocus={() => setActiveField('header')}
+                    placeholder={'<p style="font-family:Arial;font-size:16px;">Olá, %FIRSTNAME%! Confira nossa oferta:</p>'}
+                    rows={3}
+                    className={`w-full bg-slate-900 border rounded-lg px-3 py-2 text-xs text-slate-300 font-mono placeholder:text-slate-600 focus:outline-none resize-y transition-colors ${
+                      activeField === 'header' ? 'border-brand-500 ring-1 ring-brand-500/30' : 'border-slate-700 focus:border-brand-500'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">
+                    HTML <strong className="text-slate-300">depois</strong> da imagem
+                    <span className="ml-1 text-slate-600">(rodapé, descadastro...)</span>
+                  </label>
+                  <textarea
+                    ref={footerRef}
+                    value={settings.footerHtml || ''}
+                    onChange={(e) => onSettingsChange({ ...settings, footerHtml: e.target.value })}
+                    onFocus={() => setActiveField('footer')}
+                    placeholder={'<p style="font-family:Arial;font-size:12px;color:#888;">Atenciosamente, Equipe</p>'}
+                    rows={3}
+                    className={`w-full bg-slate-900 border rounded-lg px-3 py-2 text-xs text-slate-300 font-mono placeholder:text-slate-600 focus:outline-none resize-y transition-colors ${
+                      activeField === 'footer' ? 'border-brand-500 ring-1 ring-brand-500/30' : 'border-slate-700 focus:border-brand-500'
+                    }`}
+                  />
+                </div>
               </div>
             </div>
           </div>

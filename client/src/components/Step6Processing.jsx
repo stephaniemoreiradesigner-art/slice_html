@@ -5,7 +5,7 @@ const STAGES = [
   { id: 'upload', label: 'Enviando imagem ao servidor...', icon: '📤' },
   { id: 'slice', label: 'Calculando grade de fatiamento...', icon: '📐' },
   { id: 'crop', label: 'Cortando as fatias com Sharp...', icon: '✂️' },
-  { id: 'cloud', label: 'Enviando fatias ao Cloudinary...', icon: '☁️' },
+  { id: 'storage', label: 'Enviando fatias ao Supabase Storage...', icon: '☁️' },
   { id: 'html', label: 'Gerando código HTML...', icon: '💻' },
   { id: 'done', label: 'Processamento concluído!', icon: '✅' },
 ];
@@ -90,7 +90,7 @@ export default function Step6Processing({ imageFile, zones, settings, onDone, on
           <div className="text-xs text-slate-500 bg-slate-800 rounded-lg p-3 mb-6 text-left font-mono">
             <p className="text-slate-400 mb-1">Verifique:</p>
             <p>• Servidor rodando em localhost:3001</p>
-            <p>• Chaves do Cloudinary no .env</p>
+            <p>• Chaves do Supabase no .env</p>
             <p>• Conexão com a internet</p>
           </div>
           <button onClick={onError} className="btn-secondary py-2 px-6 text-sm">
