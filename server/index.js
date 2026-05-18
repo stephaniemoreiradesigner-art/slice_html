@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const sliceRouter = require('./routes/slice');
+const chatRouter = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,6 +42,7 @@ const upload = multer({
 
 // Rotas
 app.use('/api/slice', upload.single('image'), sliceRouter);
+app.use('/api/chat', chatRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

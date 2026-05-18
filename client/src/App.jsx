@@ -120,6 +120,7 @@ export default function App() {
           <Step7Result
             html={htmlResult}
             settings={settings}
+            onHtmlChange={setHtmlResult}
             onNext={next}
             onBack={() => goTo(5)}
           />
