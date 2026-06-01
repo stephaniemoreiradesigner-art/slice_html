@@ -357,30 +357,4 @@ export default function Step7Result({ html: initialHtml, settings, onHtmlChange,
                   disabled={chatLoading}
                   className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-brand-500 disabled:opacity-50"
                 />
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={sendChatMessage}
-                  disabled={chatLoading || !chatInput.trim()}
-                  className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Enviar
-                </motion.button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Instructions */}
-        <div className="mt-4 card p-4 border-brand-500/10">
-          <h4 className="text-sm font-semibold text-slate-300 mb-2">Como usar no ActiveCampaign</h4>
-          <ol className="text-sm text-slate-500 space-y-1">
-            <li>1. Clique em <strong className="text-slate-400">"Copiar código"</strong> acima</li>
-            <li>2. No editor do ActiveCampaign, adicione um bloco <strong className="text-slate-400">"HTML personalizado"</strong></li>
-            <li>3. Cole o código e salve — pronto! 🎉</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  );
-}
+   
