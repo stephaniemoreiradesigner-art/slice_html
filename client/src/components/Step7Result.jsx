@@ -84,6 +84,21 @@ export default function Step7Result({ html: initialHtml, settings, onHtmlChange,
   const footerHtml = settings?.footerHtml?.trim() || '';
   const finalHtml = [headerHtml, currentHtml, footerHtml].filter(Boolean).join('\n');
 
+  // Preview substitui variáveis por dados de exemplo para visualização real
+  const previewHtml = finalHtml
+    .replace(/%FIRSTNAME%/g, 'João')
+    .replace(/%LASTNAME%/g, 'Silva')
+    .replace(/%EMAIL%/g, 'joao@exemplo.com')
+    .replace(/%PHONE%/g, '(11) 99999-9999')
+    .replace(/%ORGNAME%/g, 'Empresa Exemplo')
+    .replace(/\*\|FNAME\|\*/g, 'João')
+    .replace(/\*\|LNAME\|\*/g, 'Silva')
+    .replace(/\*\|EMAIL\|\*/g, 'joao@exemplo.com')
+    .replace(/\*\|COMPANY\|\*/g, 'Empresa Exemplo')
+    .replace(/\*\|PRIMEIRO_NOME\|\*/g, 'João')
+    .replace(/\*\|NOME\|\*/g, 'João Silva')
+    .replace(/\*\|EMPRESA\|\*/g, 'Empresa Exemplo');
+
   const hasLayout = headerHtml || footerHtml;
   const tagsUsed = AC_TAGS.filter((t) => finalHtml.includes(t));
 
@@ -231,8 +246,13 @@ export default function Step7Result({ html: initialHtml, settings, onHtmlChange,
               </pre>
             </div>
           ) : (
-            <div className="p-4 overflow-auto bg-white" style={{ maxHeight: 480 }}>
-              <div dangerouslySetInnerHTML={{ __html: finalHtml }} />
+            <div className="overflow-auto bg-white" style={{ maxHeight: 480 }}>
+              <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
+                <span className="text-xs text-amber-400">👤 Preview com dados de exemplo — as variáveis aparecem substituídas como no envio real.</span>
+              </div>
+              <div className="p-4">
+                <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+              </div>
             </div>
           )}
         </div>
