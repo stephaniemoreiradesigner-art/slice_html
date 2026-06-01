@@ -44,8 +44,16 @@ function buildGrid(zones, imgWidth, imgHeight) {
         y: cy,
         width: cw,
         height: ch,
+        type: zone ? zone.type || 'image' : 'image',
         link: zone ? zone.link || null : null,
         alt: zone ? zone.alt || '' : '',
+        variable: zone ? zone.variable || '' : '',
+        fontSize: zone ? zone.fontSize || '16' : '16',
+        fontColor: zone ? zone.fontColor || '#000000' : '#000000',
+        fontFamily: zone ? zone.fontFamily || 'Arial, Helvetica, sans-serif' : 'Arial, Helvetica, sans-serif',
+        textAlign: zone ? zone.textAlign || 'center' : 'center',
+        fontWeight: zone ? zone.fontWeight || 'normal' : 'normal',
+        backgroundColor: zone ? zone.backgroundColor || 'transparent' : 'transparent',
       });
     }
     rows.push(cells);
@@ -62,18 +70,23 @@ function generateEmailHTML(gridRows, totalWidth) {
 <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">
   <tr>
     <td align="center" style="padding:0;margin:0;">
-<table width="${totalWidth}" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">`;
+<table width="${totalWidth}" align="center" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;margin:0 auto;">`;
 
   for (const row of gridRows) {
     html += '\n  <tr>';
     for (const cell of row) {
-      const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
-
-      const content = cell.link
-        ? `<a href="${cell.link}" target="_blank" style="display:block;text-decoration:none;border:0;">${imgTag}</a>`
-        : imgTag;
-
-      html += `\n    <td width="${cell.width}" height="${cell.height}" valign="top" style="padding:0;margin:0;border:0;line-height:0;font-size:0;">${content}</td>`;
+      if (cell.type === 'text') {
+        const bgStyle = cell.backgroundColor && cell.backgroundColor !== 'transparent'
+          ? `background-color:${cell.backgroundColor};`
+          : '';
+        html += `\n    <td width="${cell.width}" height="${cell.height}" valign="middle" style="padding:10px 15px;${bgStyle}font-family:${cell.fontFamily};font-size:${cell.fontSize}px;font-weight:${cell.fontWeight};color:${cell.fontColor};text-align:${cell.textAlign};line-height:1.3;">${cell.variable}</td>`;
+      } else {
+        const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
+        const content = cell.link
+          ? `<a href="${cell.link}" target="_blank" style="display:block;text-decoration:none;border:0;">${imgTag}</a>`
+          : imgTag;
+        html += `\n    <td width="${cell.width}" height="${cell.height}" valign="top" style="padding:0;margin:0;border:0;line-height:0;font-size:0;">${content}</td>`;
+      }
     }
     html += '\n  </tr>';
   }
@@ -119,6 +132,12 @@ router.post('/', async (req, res) => {
 
     for (const row of gridRows) {
       for (const cell of row) {
+        if (cell.type === 'text') {
+          cell.imageUrl = null;
+          uploadCount++;
+          console.log(`Célula ${uploadCount}/${totalCells} é zona de texto — sem upload.`);
+          continue;
+        }
         const cropBuffer = await sharp(inputBuffer)
           .extract({
             left: cell.x,

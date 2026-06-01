@@ -9,6 +9,13 @@ const ZONE_COLORS = [
 const MAX_CANVAS_WIDTH = 860;
 const MAX_CANVAS_HEIGHT = 560;
 
+const PRESET_VARIABLES = [
+  { label: '{{primeiro_nome}}', value: '{{primeiro_nome}}' },
+  { label: '{{nome_completo}}', value: '{{nome_completo}}' },
+  { label: '{{data_nascimento}}', value: '{{data_nascimento}}' },
+  { label: '{{email}}', value: '{{email}}' },
+];
+
 export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, initialZones, onDone, onBack }) {
   const canvasRef = useRef(null);
   const fabricRef = useRef(null);
@@ -25,6 +32,15 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
   const [drawMode, setDrawMode] = useState(true);
   const [canvasReady, setCanvasReady] = useState(false);
   const [linkInputPos, setLinkInputPos] = useState({ x: 0, y: 0 });
+
+  // Estado para zona de texto
+  const [zoneType, setZoneType] = useState('image');
+  const [textVariable, setTextVariable] = useState('{{primeiro_nome}}');
+  const [textFontSize, setTextFontSize] = useState('18');
+  const [textFontColor, setTextFontColor] = useState('#ffffff');
+  const [textTextAlign, setTextTextAlign] = useState('center');
+  const [textFontWeight, setTextFontWeight] = useState('bold');
+  const [textBgColor, setTextBgColor] = useState('transparent');
 
   // Inicializa Fabric.js
   useEffect(() => {
@@ -208,20 +224,27 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
     return { rect, label };
   }
 
+  const resetTextState = () => {
+    setZoneType('image');
+    setTextVariable('{{primeiro_nome}}');
+    setTextFontSize('18');
+    setTextFontColor('#ffffff');
+    setTextTextAlign('center');
+    setTextFontWeight('bold');
+    setTextBgColor('transparent');
+  };
+
   const confirmLink = useCallback(() => {
     if (!pendingZone) return;
     const canvas = fabricRef.current;
     if (!canvas) return;
 
-    // Remove o retângulo de preview (sem cor/label definitivo)
     canvas.remove(pendingZone._fabricRect);
 
-    const { fabric } = window.__fabric__ || {};
     const newIndex = zones.length;
     const color = ZONE_COLORS[newIndex % ZONE_COLORS.length];
     const s = scaleRef.current;
 
-    // Importa fabric novamente (já carregado)
     import('fabric').then(({ fabric: fab }) => {
       const rect = new fab.Rect({
         left: pendingZone.x * s,
@@ -235,7 +258,8 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
         evented: false,
       });
 
-      const label = new fab.Text(`${newIndex + 1}`, {
+      const labelText = zoneType === 'text' ? `T${newIndex + 1}` : `${newIndex + 1}`;
+      const label = new fab.Text(labelText, {
         left: pendingZone.x * s + 6,
         top: pendingZone.y * s + 4,
         fontSize: 14,
@@ -254,15 +278,26 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
       y: pendingZone.y,
       width: pendingZone.width,
       height: pendingZone.height,
-      link: linkInput.trim(),
-      alt: altInput.trim(),
+      type: zoneType,
+      link: zoneType === 'image' ? linkInput.trim() : '',
+      alt: zoneType === 'image' ? altInput.trim() : '',
+      ...(zoneType === 'text' ? {
+        variable: textVariable,
+        fontSize: textFontSize,
+        fontColor: textFontColor,
+        fontFamily: 'Arial, Helvetica, sans-serif',
+        textAlign: textTextAlign,
+        fontWeight: textFontWeight,
+        backgroundColor: textBgColor,
+      } : {}),
     };
 
     setZones((prev) => [...prev, confirmedZone]);
     setPendingZone(null);
     setLinkInput('');
     setAltInput('');
-  }, [pendingZone, zones, linkInput, altInput]);
+    resetTextState();
+  }, [pendingZone, zones, linkInput, altInput, zoneType, textVariable, textFontSize, textFontColor, textTextAlign, textFontWeight, textBgColor]);
 
   const cancelLink = useCallback(() => {
     if (pendingZone && fabricRef.current) {
@@ -272,6 +307,7 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
     setPendingZone(null);
     setLinkInput('');
     setAltInput('');
+    resetTextState();
   }, [pendingZone]);
 
   const removeZone = (index) => {
@@ -377,8 +413,8 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
                 const rectTop = pendingZone.y * s;
                 const rectRight = rectLeft + pendingZone.width * s;
                 const rectBottom = rectTop + pendingZone.height * s;
-                const PANEL_W = 288; // w-72
-                const PANEL_H = 220;
+                const PANEL_W = 320; // w-80
+                const PANEL_H = 380;
                 const TOOLBAR_H = 60; // altura da toolbar + mb
 
                 // Horizontal: preferir à direita, senão à esquerda
@@ -396,9 +432,10 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
                     initial={{ opacity: 0, scale: 0.95, y: 8 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="absolute z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-72"
+                    className="absolute z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 w-80"
                     style={{ left, top }}
                   >
+                    {/* Header */}
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-2 h-2 rounded-full bg-brand-500" />
                       <p className="text-sm font-semibold text-slate-100">Zona {zones.length + 1}</p>
@@ -407,65 +444,159 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
                       </span>
                     </div>
 
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-xs text-slate-400 mb-1 block">
-                          URL do link <span className="text-slate-600">(opcional)</span>
-                        </label>
-                        <input
-                          autoFocus
-                          type="url"
-                          value={linkInput}
-                          onChange={(e) => setLinkInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') confirmLink();
-                            if (e.key === 'Escape') cancelLink();
-                          }}
-                          placeholder="https://seusite.com/pagina"
-                          className="input-field text-sm py-2"
-                        />
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%'].map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={() => setLinkInput((prev) => prev + tag)}
-                              className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors"
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-400 mb-1 block">
-                          Alt text <span className="text-slate-600">(acessibilidade)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={altInput}
-                          onChange={(e) => setAltInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') confirmLink();
-                            if (e.key === 'Escape') cancelLink();
-                          }}
-                          placeholder="Descrição da imagem"
-                          className="input-field text-sm py-2"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 mt-3">
+                    {/* Toggle tipo */}
+                    <div className="flex rounded-lg bg-slate-800 p-1 mb-3">
                       <button
-                        onClick={cancelLink}
-                        className="flex-1 py-1.5 px-3 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors"
+                        type="button"
+                        onClick={() => setZoneType('image')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-all ${zoneType === 'image' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                       >
-                        Cancelar
+                        📷 Imagem
                       </button>
                       <button
-                        onClick={confirmLink}
-                        className="flex-1 py-1.5 px-3 text-xs rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium transition-colors"
+                        type="button"
+                        onClick={() => setZoneType('text')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-all ${zoneType === 'text' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                       >
+                        ✏️ Texto
+                      </button>
+                    </div>
+
+                    {/* Campos de imagem */}
+                    {zoneType === 'image' && (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">
+                            URL do link <span className="text-slate-600">(opcional)</span>
+                          </label>
+                          <input
+                            autoFocus
+                            type="url"
+                            value={linkInput}
+                            onChange={(e) => setLinkInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') confirmLink(); if (e.key === 'Escape') cancelLink(); }}
+                            placeholder="https://seusite.com/pagina"
+                            className="input-field text-sm py-2"
+                          />
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%'].map((tag) => (
+                              <button key={tag} type="button" onClick={() => setLinkInput((prev) => prev + tag)}
+                                className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors">
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">
+                            Alt text <span className="text-slate-600">(acessibilidade)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={altInput}
+                            onChange={(e) => setAltInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') confirmLink(); if (e.key === 'Escape') cancelLink(); }}
+                            placeholder="Descrição da imagem"
+                            className="input-field text-sm py-2"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Campos de texto personalizado */}
+                    {zoneType === 'text' && (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">Variável de personalização</label>
+                          <input
+                            autoFocus
+                            type="text"
+                            value={textVariable}
+                            onChange={(e) => setTextVariable(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') confirmLink(); if (e.key === 'Escape') cancelLink(); }}
+                            placeholder="{{primeiro_nome}}"
+                            className="input-field text-sm py-2 font-mono"
+                          />
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {PRESET_VARIABLES.map((v) => (
+                              <button key={v.value} type="button" onClick={() => setTextVariable(v.value)}
+                                className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors font-mono">
+                                {v.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">Tamanho (px)</label>
+                            <input
+                              type="number"
+                              value={textFontSize}
+                              onChange={(e) => setTextFontSize(e.target.value)}
+                              min="10" max="72"
+                              className="input-field text-sm py-2 w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">Cor do texto</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={textFontColor}
+                                onChange={(e) => setTextFontColor(e.target.value)}
+                                className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
+                              />
+                              <span className="text-xs text-slate-400 font-mono">{textFontColor}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-end gap-3">
+                          <div className="flex-1">
+                            <label className="text-xs text-slate-400 mb-1 block">Alinhamento</label>
+                            <div className="flex rounded-lg bg-slate-800 p-0.5">
+                              {[['left','←'],['center','≡'],['right','→']].map(([val, icon]) => (
+                                <button key={val} type="button" onClick={() => setTextTextAlign(val)}
+                                  className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${textTextAlign === val ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                                  {icon}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">Negrito</label>
+                            <button type="button"
+                              onClick={() => setTextFontWeight(textFontWeight === 'bold' ? 'normal' : 'bold')}
+                              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${textFontWeight === 'bold' ? 'bg-brand-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>
+                              B
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">Cor de fundo <span className="text-slate-600">(opcional)</span></label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={textBgColor === 'transparent' ? '#1e293b' : textBgColor}
+                              onChange={(e) => setTextBgColor(e.target.value)}
+                              className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
+                            />
+                            <button type="button" onClick={() => setTextBgColor('transparent')}
+                              className={`text-xs px-2 py-1 rounded transition-all ${textBgColor === 'transparent' ? 'bg-brand-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>
+                              Transparente
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Botões */}
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={cancelLink}
+                        className="flex-1 py-1.5 px-3 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors">
+                        Cancelar
+                      </button>
+                      <button onClick={confirmLink}
+                        className="flex-1 py-1.5 px-3 text-xs rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium transition-colors">
                         Confirmar ✓
                       </button>
                     </div>
@@ -524,7 +655,9 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
                       <p className="text-xs text-slate-500 font-mono">
                         {z.width} × {z.height}px
                       </p>
-                      {z.link ? (
+                      {z.type === 'text' ? (
+                        <p className="text-xs text-amber-400 truncate mt-0.5 font-mono">{z.variable || '{{variável}}'}</p>
+                      ) : z.link ? (
                         <p className="text-xs text-brand-400 truncate mt-0.5">{z.link}</p>
                       ) : (
                         <p className="text-xs text-slate-600 italic mt-0.5">sem link</p>

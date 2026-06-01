@@ -8,16 +8,35 @@ const ZONE_COLORS = [
 
 export default function Step4ZoneReview({ zones, imageUrl, onZonesChange, onNext, onBack }) {
   const [editIndex, setEditIndex] = useState(null);
-  const [editValues, setEditValues] = useState({ link: '', alt: '' });
+  const [editValues, setEditValues] = useState({
+    link: '', alt: '',
+    variable: '', fontSize: '18', fontColor: '#ffffff',
+    textAlign: 'center', fontWeight: 'bold', backgroundColor: 'transparent',
+  });
 
   const startEdit = (i) => {
     setEditIndex(i);
-    setEditValues({ link: zones[i].link || '', alt: zones[i].alt || '' });
+    const z = zones[i];
+    setEditValues({
+      link: z.link || '',
+      alt: z.alt || '',
+      variable: z.variable || '{{primeiro_nome}}',
+      fontSize: z.fontSize || '18',
+      fontColor: z.fontColor || '#ffffff',
+      textAlign: z.textAlign || 'center',
+      fontWeight: z.fontWeight || 'bold',
+      backgroundColor: z.backgroundColor || 'transparent',
+    });
   };
 
   const saveEdit = (i) => {
-    const updated = zones.map((z, idx) =>
-      idx === i ? { ...z, link: editValues.link.trim(), alt: editValues.alt.trim() } : z
+    const z = zones[i];
+    const updated = zones.map((zone, idx) =>
+      idx === i
+        ? z.type === 'text'
+          ? { ...zone, variable: editValues.variable, fontSize: editValues.fontSize, fontColor: editValues.fontColor, textAlign: editValues.textAlign, fontWeight: editValues.fontWeight, backgroundColor: editValues.backgroundColor }
+          : { ...zone, link: editValues.link.trim(), alt: editValues.alt.trim() }
+        : zone
     );
     onZonesChange(updated);
     setEditIndex(null);
@@ -27,7 +46,8 @@ export default function Step4ZoneReview({ zones, imageUrl, onZonesChange, onNext
     onZonesChange(zones.filter((_, idx) => idx !== i));
   };
 
-  const totalWithLinks = zones.filter((z) => z.link).length;
+  const totalWithLinks = zones.filter((z) => z.type !== 'text' && z.link).length;
+  const totalText = zones.filter((z) => z.type === 'text').length;
 
   return (
     <div className="flex flex-col min-h-full px-6 py-8">
@@ -59,7 +79,7 @@ export default function Step4ZoneReview({ zones, imageUrl, onZonesChange, onNext
           {[
             { label: 'Total de zonas', value: zones.length, color: 'text-slate-200' },
             { label: 'Com link', value: totalWithLinks, color: 'text-brand-400' },
-            { label: 'Sem link', value: zones.length - totalWithLinks, color: 'text-slate-400' },
+            { label: 'Texto/personaliz.', value: totalText, color: 'text-amber-400' },
           ].map((stat) => (
             <div key={stat.label} className="card p-4 text-center">
               <div className={`text-3xl font-bold mb-1 ${stat.color}`}>{stat.value}</div>
@@ -120,39 +140,104 @@ export default function Step4ZoneReview({ zones, imageUrl, onZonesChange, onNext
                       </span>
                     </div>
                     <div className="space-y-2 mb-3">
-                      <div>
-                        <label className="text-xs text-slate-400 mb-1 block">URL do link</label>
-                        <input
-                          autoFocus
-                          type="url"
-                          value={editValues.link}
-                          onChange={(e) => setEditValues((v) => ({ ...v, link: e.target.value }))}
-                          placeholder="https://seusite.com/pagina"
-                          className="input-field text-sm"
-                        />
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%'].map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={() => setEditValues((v) => ({ ...v, link: v.link + tag }))}
-                              className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors"
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-400 mb-1 block">Alt text</label>
-                        <input
-                          type="text"
-                          value={editValues.alt}
-                          onChange={(e) => setEditValues((v) => ({ ...v, alt: e.target.value }))}
-                          placeholder="Descrição da imagem para acessibilidade"
-                          className="input-field text-sm"
-                        />
-                      </div>
+                      {zone.type === 'text' ? (
+                        <>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">Variável de personalização</label>
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editValues.variable}
+                              onChange={(e) => setEditValues((v) => ({ ...v, variable: e.target.value }))}
+                              placeholder="{{primeiro_nome}}"
+                              className="input-field text-sm font-mono"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-xs text-slate-400 mb-1 block">Tamanho (px)</label>
+                              <input type="number" value={editValues.fontSize} min="10" max="72"
+                                onChange={(e) => setEditValues((v) => ({ ...v, fontSize: e.target.value }))}
+                                className="input-field text-sm w-full" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-400 mb-1 block">Cor do texto</label>
+                              <div className="flex items-center gap-2">
+                                <input type="color" value={editValues.fontColor}
+                                  onChange={(e) => setEditValues((v) => ({ ...v, fontColor: e.target.value }))}
+                                  className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
+                                <span className="text-xs text-slate-400 font-mono">{editValues.fontColor}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-end gap-3">
+                            <div className="flex-1">
+                              <label className="text-xs text-slate-400 mb-1 block">Alinhamento</label>
+                              <div className="flex rounded-lg bg-slate-800 p-0.5">
+                                {[['left','←'],['center','≡'],['right','→']].map(([val, icon]) => (
+                                  <button key={val} type="button"
+                                    onClick={() => setEditValues((v) => ({ ...v, textAlign: val }))}
+                                    className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${editValues.textAlign === val ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                                    {icon}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-400 mb-1 block">Negrito</label>
+                              <button type="button"
+                                onClick={() => setEditValues((v) => ({ ...v, fontWeight: v.fontWeight === 'bold' ? 'normal' : 'bold' }))}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${editValues.fontWeight === 'bold' ? 'bg-brand-500 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                                B
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">Cor de fundo</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color"
+                                value={editValues.backgroundColor === 'transparent' ? '#1e293b' : editValues.backgroundColor}
+                                onChange={(e) => setEditValues((v) => ({ ...v, backgroundColor: e.target.value }))}
+                                className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
+                              <button type="button"
+                                onClick={() => setEditValues((v) => ({ ...v, backgroundColor: 'transparent' }))}
+                                className={`text-xs px-2 py-1 rounded transition-all ${editValues.backgroundColor === 'transparent' ? 'bg-brand-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>
+                                Transparente
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">URL do link</label>
+                            <input
+                              autoFocus
+                              type="url"
+                              value={editValues.link}
+                              onChange={(e) => setEditValues((v) => ({ ...v, link: e.target.value }))}
+                              placeholder="https://seusite.com/pagina"
+                              className="input-field text-sm"
+                            />
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%'].map((tag) => (
+                                <button key={tag} type="button"
+                                  onClick={() => setEditValues((v) => ({ ...v, link: v.link + tag }))}
+                                  className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors">
+                                  {tag}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">Alt text</label>
+                            <input type="text" value={editValues.alt}
+                              onChange={(e) => setEditValues((v) => ({ ...v, alt: e.target.value }))}
+                              placeholder="Descrição da imagem para acessibilidade"
+                              className="input-field text-sm" />
+                          </div>
+                        </>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -185,17 +270,23 @@ export default function Step4ZoneReview({ zones, imageUrl, onZonesChange, onNext
                           {zone.width} × {zone.height}px
                         </span>
                       </div>
-                      {zone.link ? (
+                      {zone.type === 'text' ? (
+                        <p className="text-sm text-amber-400 truncate font-mono">{zone.variable || '{{variável}}'}</p>
+                      ) : zone.link ? (
                         <p className="text-sm text-brand-400 truncate">{zone.link}</p>
                       ) : (
                         <p className="text-sm text-slate-600 italic">Nenhum link definido</p>
                       )}
-                      {zone.alt && (
+                      {zone.type !== 'text' && zone.alt && (
                         <p className="text-xs text-slate-500 truncate">Alt: {zone.alt}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {zone.link ? (
+                      {zone.type === 'text' ? (
+                        <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                          texto
+                        </span>
+                      ) : zone.link ? (
                         <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
                           com link
                         </span>
