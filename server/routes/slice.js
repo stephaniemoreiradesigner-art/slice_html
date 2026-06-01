@@ -126,4 +126,49 @@ router.post('/', async (req, res) => {
     // Gera grade de células
     const gridRows = buildGrid(zones, imgWidth, imgHeight);
 
-    // Processa cada célula: c
+    // Processa cada célula: crop + upload para o Supabase Storage
+    let uploadCount = 0;
+    const totalCells = gridRows.reduce((sum, row) => sum + row.length, 0);
+
+    for (const row of gridRows) {
+      for (const cell of row) {
+        if (cell.type === 'text') {
+          cell.imageUrl = null;
+          uploadCount++;
+          console.log(`Célula ${uploadCount}/${totalCells} é zona de texto — sem upload.`);
+          continue;
+        }
+        const cropBuffer = await sharp(inputBuffer)
+          .extract({
+            left: cell.x,
+            top: cell.y,
+            width: cell.width,
+            height: cell.height,
+          })
+          .png()
+          .toBuffer();
+
+        const uploadResult = await uploadBuffer(cropBuffer);
+        cell.imageUrl = uploadResult.secure_url;
+        uploadCount++;
+        console.log(`Célula ${uploadCount}/${totalCells} enviada para o Supabase Storage.`);
+      }
+    }
+
+    const htmlCode = generateEmailHTML(gridRows, imgWidth);
+
+    res.json({
+      success: true,
+      html: htmlCode,
+      imageWidth: imgWidth,
+      imageHeight: imgHeight,
+      totalCells,
+      zones: zones.length,
+    });
+  } catch (err) {
+    console.error('Erro ao processar imagem:', err);
+    res.status(500).json({ error: 'Erro interno ao processar imagem.', details: err.message });
+  }
+});
+
+module.exports = router;

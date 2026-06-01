@@ -211,3 +211,114 @@ export default function Step4ZoneReview({ zones, imageUrl, onZonesChange, onNext
                         <>
                           <div>
                             <label className="text-xs text-slate-400 mb-1 block">URL do link</label>
+                            <input
+                              autoFocus
+                              type="url"
+                              value={editValues.link}
+                              onChange={(e) => setEditValues((v) => ({ ...v, link: e.target.value }))}
+                              placeholder="https://seusite.com/pagina"
+                              className="input-field text-sm"
+                            />
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%'].map((tag) => (
+                                <button key={tag} type="button"
+                                  onClick={() => setEditValues((v) => ({ ...v, link: v.link + tag }))}
+                                  className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors">
+                                  {tag}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">Alt text</label>
+                            <input type="text" value={editValues.alt}
+                              onChange={(e) => setEditValues((v) => ({ ...v, alt: e.target.value }))}
+                              placeholder="Descrição da imagem para acessibilidade"
+                              className="input-field text-sm" />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditIndex(null)}
+                        className="btn-secondary py-1.5 px-4 text-xs"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => saveEdit(i)}
+                        className="btn-primary py-1.5 px-4 text-xs"
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* View mode */
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+                      style={{ backgroundColor: ZONE_COLORS[i % ZONE_COLORS.length] + '33', color: ZONE_COLORS[i % ZONE_COLORS.length] }}
+                    >
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-medium text-slate-200">Zona {i + 1}</span>
+                        <span className="text-xs text-slate-600 font-mono">
+                          {zone.width} × {zone.height}px
+                        </span>
+                      </div>
+                      {zone.type === 'text' ? (
+                        <p className="text-sm text-amber-400 truncate font-mono">{zone.variable || '{{variável}}'}</p>
+                      ) : zone.link ? (
+                        <p className="text-sm text-brand-400 truncate">{zone.link}</p>
+                      ) : (
+                        <p className="text-sm text-slate-600 italic">Nenhum link definido</p>
+                      )}
+                      {zone.type !== 'text' && zone.alt && (
+                        <p className="text-xs text-slate-500 truncate">Alt: {zone.alt}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {zone.type === 'text' ? (
+                        <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                          texto
+                        </span>
+                      ) : zone.link ? (
+                        <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                          com link
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-slate-800 text-slate-500 border border-slate-700 px-2 py-0.5 rounded-full">
+                          sem link
+                        </span>
+                      )}
+                      <button
+                        onClick={() => startEdit(i)}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => removeZone(i)}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
