@@ -9,12 +9,35 @@ const ZONE_COLORS = [
 const MAX_CANVAS_WIDTH = 860;
 const MAX_CANVAS_HEIGHT = 560;
 
-const PRESET_VARIABLES = [
-  { label: '{{primeiro_nome}}', value: '{{primeiro_nome}}' },
-  { label: '{{nome_completo}}', value: '{{nome_completo}}' },
-  { label: '{{data_nascimento}}', value: '{{data_nascimento}}' },
-  { label: '{{email}}', value: '{{email}}' },
-];
+const ESP_VARIABLES = {
+  activecampaign: {
+    label: 'ActiveCampaign',
+    vars: [
+      { label: 'Primeiro nome', value: '%FIRSTNAME%' },
+      { label: 'Sobrenome',     value: '%LASTNAME%' },
+      { label: 'Email',         value: '%EMAIL%' },
+      { label: 'Empresa',       value: '%ORGNAME%' },
+    ],
+  },
+  mailchimp: {
+    label: 'Mailchimp',
+    vars: [
+      { label: 'Primeiro nome', value: '*|FNAME|*' },
+      { label: 'Sobrenome',     value: '*|LNAME|*' },
+      { label: 'Email',         value: '*|EMAIL|*' },
+      { label: 'Empresa',       value: '*|COMPANY|*' },
+    ],
+  },
+  rdstation: {
+    label: 'RD Station',
+    vars: [
+      { label: 'Primeiro nome', value: '*|PRIMEIRO_NOME|*' },
+      { label: 'Nome completo', value: '*|NOME|*' },
+      { label: 'Email',         value: '*|EMAIL|*' },
+      { label: 'Empresa',       value: '*|EMPRESA|*' },
+    ],
+  },
+};
 
 export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, initialZones, onDone, onBack }) {
   const canvasRef = useRef(null);
@@ -34,8 +57,9 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
   const [linkInputPos, setLinkInputPos] = useState({ x: 0, y: 0 });
 
   // Estado para zona de texto
+  const [selectedEsp, setSelectedEsp] = useState('activecampaign');
   const [zoneType, setZoneType] = useState('image');
-  const [textVariable, setTextVariable] = useState('{{primeiro_nome}}');
+  const [textVariable, setTextVariable] = useState('%FIRSTNAME%');
   const [textFontSize, setTextFontSize] = useState('18');
   const [textFontColor, setTextFontColor] = useState('#ffffff');
   const [textTextAlign, setTextTextAlign] = useState('center');
@@ -226,7 +250,7 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
 
   const resetTextState = () => {
     setZoneType('image');
-    setTextVariable('{{primeiro_nome}}');
+    setTextVariable('%FIRSTNAME%');
     setTextFontSize('18');
     setTextFontColor('#ffffff');
     setTextTextAlign('center');
@@ -514,17 +538,28 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
                             value={textVariable}
                             onChange={(e) => setTextVariable(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') confirmLink(); if (e.key === 'Escape') cancelLink(); }}
-                            placeholder="{{primeiro_nome}}"
+                            placeholder="%FIRSTNAME%"
                             className="input-field text-sm py-2 font-mono"
                           />
+                          {/* Seletor de ESP */}
+                          <div className="flex rounded-lg bg-slate-800 p-0.5 mt-1.5">
+                            {Object.entries(ESP_VARIABLES).map(([key, esp]) => (
+                              <button key={key} type="button" onClick={() => setSelectedEsp(key)}
+                                className={`flex-1 py-1 rounded text-xs font-medium transition-all truncate ${selectedEsp === key ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                                {esp.label}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Presets do ESP selecionado */}
                           <div className="flex flex-wrap gap-1 mt-1.5">
-                            {PRESET_VARIABLES.map((v) => (
+                            {ESP_VARIABLES[selectedEsp].vars.map((v) => (
                               <button key={v.value} type="button" onClick={() => setTextVariable(v.value)}
                                 className="text-xs px-1.5 py-0.5 bg-slate-800 text-brand-400 border border-slate-700 rounded hover:bg-slate-700 transition-colors font-mono">
                                 {v.label}
                               </button>
                             ))}
                           </div>
+                          <p className="text-xs text-slate-600 mt-1.5">⚠️ A preview mostra a tag literal. Defina a <strong className="text-slate-500">cor de fundo</strong> abaixo igual ao fundo do seu email para evitar fundo branco no Outlook.</p>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div>

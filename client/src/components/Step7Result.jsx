@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-const AC_TAGS = ['%FIRSTNAME%', '%LASTNAME%', '%EMAIL%', '%PHONE%', '%ORGNAME%'];
+const AC_TAGS = [
+  // ActiveCampaign
+  '%FIRSTNAME%', '%LASTNAME%', '%EMAIL%', '%PHONE%', '%ORGNAME%',
+  // Mailchimp
+  '*|FNAME|*', '*|LNAME|*', '*|EMAIL|*', '*|COMPANY|*',
+  // RD Station
+  '*|PRIMEIRO_NOME|*', '*|NOME|*', '*|EMPRESA|*',
+];
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
