@@ -59,6 +59,9 @@ function buildGrid(zones, imgWidth, imgHeight) {
  */
 function generateEmailHTML(gridRows, totalWidth) {
   let html = `<!-- SlicerMail Pro - Gerado automaticamente -->
+<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">
+  <tr>
+    <td align="center" style="padding:0;margin:0;">
 <table width="${totalWidth}" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">`;
 
   for (const row of gridRows) {
@@ -75,7 +78,7 @@ function generateEmailHTML(gridRows, totalWidth) {
     html += '\n  </tr>';
   }
 
-  html += '\n</table>';
+  html += '\n</table>\n    </td>\n  </tr>\n</table>';
   return html;
 }
 
