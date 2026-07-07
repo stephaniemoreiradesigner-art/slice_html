@@ -252,11 +252,22 @@ router.post('/', async (req, res) => {
         const { color, isFlat } = await analyzeRegion(inputBuffer, cell);
         cell.backgroundColor = color;
 
-        if (isFlat && !cell.link) {
+        // Reforço empírico: em campo, TODA coluna que quebrou no Gmail
+        // mobile tinha ≤97px de largura (49, 50, 63, 90, 91, 97) — mesmo
+        // quando o desvio-padrão de cor não era baixo o bastante pra ser
+        // pega pelo critério de "lisa" (textura/vinheta sutil no fundo
+        // escuro). Nenhuma coluna ≥114px jamais quebrou. Por segurança,
+        // qualquer coluna de margem sem link e com até 100px de largura
+        // também vira <td> de cor sólida, independente da variação de cor.
+        const NARROW_WIDTH_THRESHOLD = 100;
+        const treatAsFlat = isFlat || cell.width <= NARROW_WIDTH_THRESHOLD;
+
+        if (treatAsFlat && !cell.link) {
           cell.imageUrl = null;
           cell.isFlat = true;
           uploadCount++;
-          console.log(`Célula ${uploadCount}/${totalCells} é região lisa (${color}) — vira <td> de cor sólida, sem upload.`);
+          const motivo = isFlat ? 'região lisa' : `largura ${cell.width}px ≤ ${NARROW_WIDTH_THRESHOLD}px`;
+          console.log(`Célula ${uploadCount}/${totalCells} é ${motivo} (${color}) — vira <td> de cor sólida, sem upload.`);
           continue;
         }
 
