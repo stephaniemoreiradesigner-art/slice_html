@@ -124,11 +124,17 @@ function generateEmailHTML(gridRows, totalWidth) {
           : '#000000';
         html += `\n          <td width="${cell.width}" height="${cell.height}" valign="middle" bgcolor="${bg}" style="padding:0;background-color:${bg};font-family:${cell.fontFamily};font-size:${fontSizePx}px;font-weight:${cell.fontWeight};color:${cell.fontColor};text-align:${cell.textAlign};line-height:${lineHeight}px;mso-line-height-rule:exactly;">${cell.variable}</td>`;
       } else {
+        // bgcolor de segurança: em navegadores/clientes que arredondam
+        // pixels de forma independente por célula (Chrome/Gmail em zoom
+        // ou telas HiDPI), pode sobrar um hairline de até 1px entre
+        // colunas adjacentes. Preenchendo o <td> com a cor dominante da
+        // fatia, esse gap fica invisível em vez de aparecer branco.
+        const bg = cell.backgroundColor || '#000000';
         const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:${cell.height}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
         const content = cell.link
           ? `<a href="${cell.link}" target="_blank" style="display:block;text-decoration:none;border:0;">${imgTag}</a>`
           : imgTag;
-        html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" style="padding:0;margin:0;border:0;line-height:0;font-size:0;">${content}</td>`;
+        html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" bgcolor="${bg}" style="padding:0;margin:0;border:0;line-height:0;font-size:0;background-color:${bg};">${content}</td>`;
       }
     }
 
@@ -197,6 +203,11 @@ router.post('/', async (req, res) => {
           })
           .png()
           .toBuffer();
+
+        // mesma amostragem de cor dominante usada nas zonas de texto,
+        // agora aplicada às fatias de imagem para servir de bgcolor
+        // de segurança contra hairlines de arredondamento.
+        cell.backgroundColor = await sampleDominantColor(inputBuffer, cell);
 
         const uploadResult = await uploadBuffer(cropBuffer);
         cell.imageUrl = uploadResult.secure_url;
