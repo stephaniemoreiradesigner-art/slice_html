@@ -129,8 +129,16 @@ function generateEmailHTML(gridRows, totalWidth) {
         // ou telas HiDPI), pode sobrar um hairline de até 1px entre
         // colunas adjacentes. Preenchendo o <td> com a cor dominante da
         // fatia, esse gap fica invisível em vez de aparecer branco.
+        //
+        // IMPORTANTE: o background-color também precisa ir na própria tag
+        // <img>, não só no <td>. Quando a imagem falha de verdade (em vez
+        // de só demorar) em alguns webviews — inclusive o do Gmail para
+        // Android — a caixa do <img> quebrado é pintada de branco por
+        // cima, escondendo o fundo do <td> que está atrás dela. Sem o
+        // background-color na própria <img>, a "caixa branca" reaparece
+        // mesmo com o <td> corrigido.
         const bg = cell.backgroundColor || '#000000';
-        const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:${cell.height}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
+        const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:${cell.height}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;background-color:${bg};" />`;
         const content = cell.link
           ? `<a href="${cell.link}" target="_blank" style="display:block;text-decoration:none;border:0;">${imgTag}</a>`
           : imgTag;

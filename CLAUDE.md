@@ -40,6 +40,7 @@ sem precisar caçar no histórico.
 | 1.0.0 | `10b547e` | bgcolor de segurança nas fatias de imagem (hairline por arredondamento de subpixel no Chrome/Gmail) — pré-versionamento |
 | 1.0.0 | `e74924d` | Zoom no editor de zonas (Step3Canvas) — pré-versionamento |
 | 1.1.0 | *(a commitar)* | Versionamento passa a ser rastreado: `client/package.json` como fonte única, exibido no header via `APP_VERSION` |
+| 1.1.1 | *(a commitar)* | fix: caixa branca em fatias de imagem no Gmail mobile — `background-color` estava só no `<td>`, faltava na própria tag `<img>` (quando a imagem falha de verdade em vez de só demorar, alguns webviews pintam a caixa quebrada de branco por cima do fundo do `<td>`) |
 
 *(As três primeiras linhas já foram commitadas antes desta regra existir —
 por isso ainda aparecem como v1.0.0. A partir da v1.1.0 em diante, todo
