@@ -8,6 +8,9 @@ const ZONE_COLORS = [
 
 const MAX_CANVAS_WIDTH = 860;
 const MAX_CANVAS_HEIGHT = 560;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.25;
 
 const ESP_VARIABLES = {
   activecampaign: {
@@ -46,6 +49,8 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
   const startPosRef = useRef({ x: 0, y: 0 });
   const currentRectRef = useRef(null);
   const scaleRef = useRef(1);
+  const baseScaleRef = useRef(1); // escala "encaixar na tela", sem zoom aplicado
+  const zonesRef = useRef([]); // espelha `zones` para uso dentro de callbacks assíncronos
   const containerRef = useRef(null);
 
   const [zones, setZones] = useState(initialZones || []);
@@ -55,6 +60,8 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
   const [drawMode, setDrawMode] = useState(true);
   const [canvasReady, setCanvasReady] = useState(false);
   const [linkInputPos, setLinkInputPos] = useState({ x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
 
   // Estado para zona de texto
   const [selectedEsp, setSelectedEsp] = useState('activecampaign');
@@ -65,6 +72,12 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
   const [textTextAlign, setTextTextAlign] = useState('center');
   const [textFontWeight, setTextFontWeight] = useState('bold');
   const [textBgColor, setTextBgColor] = useState('transparent');
+
+  // Mantém zonesRef sincronizado com o estado, para uso em callbacks
+  // (applyScale) sem precisar recriar a função a cada zona nova.
+  useEffect(() => {
+    zonesRef.current = zones;
+  }, [zones]);
 
   // Inicializa Fabric.js
   useEffect(() => {
@@ -79,6 +92,7 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
         1
       );
       scaleRef.current = scale;
+      baseScaleRef.current = scale;
 
       const cw = Math.round(imageDimensions.width * scale);
       const ch = Math.round(imageDimensions.height * scale);
@@ -248,6 +262,72 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
     return { rect, label };
   }
 
+  // Reaplica a imagem de fundo e as zonas já confirmadas na escala
+  // informada. Usada tanto pelo zoom quanto pela remoção de zonas — as
+  // coordenadas de `zonesRef` sempre ficam em pixels da imagem original,
+  // então mudar a escala nunca desloca as zonas já desenhadas.
+  const applyScale = useCallback(async (newScale) => {
+    const canvas = fabricRef.current;
+    if (!canvas) return;
+
+    scaleRef.current = newScale;
+    const cw = Math.round(imageDimensions.width * newScale);
+    const ch = Math.round(imageDimensions.height * newScale);
+    canvas.setDimensions({ width: cw, height: ch });
+    canvas.clear();
+
+    const { fabric } = await import('fabric');
+    fabric.Image.fromURL(
+      imageUrl,
+      (img) => {
+        img.scaleToWidth(cw);
+        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+        zonesRef.current.forEach((z, i) => drawZoneRect(fabric, canvas, z, i, newScale));
+        canvas.defaultCursor = isDrawingRef.current ? 'crosshair' : 'default';
+        canvas.hoverCursor = isDrawingRef.current ? 'crosshair' : 'default';
+        canvas.renderAll();
+      },
+      { crossOrigin: 'anonymous' }
+    );
+  }, [imageUrl, imageDimensions]);
+
+  // Aplica o nível de zoom escolhido pelo usuário. O zoom multiplica a
+  // escala "encaixar na tela" (baseScaleRef) — as zonas continuam sendo
+  // salvas em pixels reais da imagem, então dá pra ampliar sem risco de
+  // desalinhar o que já foi desenhado.
+  useEffect(() => {
+    if (!canvasReady) return;
+
+    if (pendingZone) {
+      const canvas = fabricRef.current;
+      if (canvas && pendingZone._fabricRect) canvas.remove(pendingZone._fabricRect);
+      setPendingZone(null);
+      setLinkInput('');
+      setAltInput('');
+      resetTextState();
+    }
+
+    applyScale(baseScaleRef.current * zoomLevel);
+
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+    setScrollOffset({ x: 0, y: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomLevel]);
+
+  const zoomIn = () => setZoomLevel((z) => Math.min(MAX_ZOOM, Math.round((z + ZOOM_STEP) * 100) / 100));
+  const zoomOut = () => setZoomLevel((z) => Math.max(MIN_ZOOM, Math.round((z - ZOOM_STEP) * 100) / 100));
+  const zoomReset = () => setZoomLevel(1);
+
+  // Acompanha o scroll do canvas (quando ampliado, ele passa a ter
+  // scrollbars) para manter o popup de confirmação de zona alinhado
+  // com o retângulo desenhado.
+  const handleCanvasScroll = (e) => {
+    setScrollOffset({ x: e.target.scrollLeft, y: e.target.scrollTop });
+  };
+
   const resetTextState = () => {
     setZoneType('image');
     setTextVariable('%FIRSTNAME%');
@@ -335,26 +415,10 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
   }, [pendingZone]);
 
   const removeZone = (index) => {
-    setZones((prev) => prev.filter((_, i) => i !== index));
-    // Redesenha o canvas do zero com as zonas restantes
-    redrawCanvas(zones.filter((_, i) => i !== index));
-  };
-
-  const redrawCanvas = async (newZones) => {
-    const canvas = fabricRef.current;
-    if (!canvas) return;
-    canvas.clear();
-    const { fabric } = await import('fabric');
-    fabric.Image.fromURL(
-      imageUrl,
-      (img) => {
-        img.scaleToWidth(canvas.width);
-        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-        newZones.forEach((z, i) => drawZoneRect(fabric, canvas, z, i, scaleRef.current));
-        canvas.renderAll();
-      },
-      { crossOrigin: 'anonymous' }
-    );
+    const newZones = zones.filter((_, i) => i !== index);
+    setZones(newZones);
+    zonesRef.current = newZones;
+    applyScale(scaleRef.current);
   };
 
   const handleDone = () => {
@@ -408,16 +472,46 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
               <span className="text-slate-600 text-xs">
                 {drawMode ? 'Clique e arraste para criar uma área' : 'Modo de visualização'}
               </span>
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs text-slate-500">Zoom: 1:1</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={zoomOut}
+                  disabled={!canvasReady || zoomLevel <= MIN_ZOOM}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Diminuir zoom"
+                >
+                  −
+                </button>
+                <span className="text-xs text-slate-400 font-mono w-12 text-center select-none">
+                  {Math.round(zoomLevel * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={zoomIn}
+                  disabled={!canvasReady || zoomLevel >= MAX_ZOOM}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Aumentar zoom"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={zoomReset}
+                  disabled={!canvasReady || zoomLevel === 1}
+                  className="text-xs px-2 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ml-1"
+                  title="Voltar ao tamanho de ajuste"
+                >
+                  Redefinir
+                </button>
               </div>
             </div>
 
             {/* Canvas — sem overflow-hidden para o popup não ser cortado */}
             <div
               ref={containerRef}
+              onScroll={handleCanvasScroll}
               className="relative card"
-              style={{ display: 'inline-block', maxWidth: '100%' }}
+              style={{ display: 'inline-block', maxWidth: '100%', maxHeight: '70vh', overflow: 'auto' }}
             >
               {!canvasReady && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-900 z-10 rounded-2xl">
@@ -444,12 +538,14 @@ export default function Step3Canvas({ imageFile, imageUrl, imageDimensions, init
                 // Horizontal: preferir à direita, senão à esquerda
                 let left = rectRight + 8;
                 if (left + PANEL_W > cw) left = Math.max(0, rectLeft - PANEL_W - 8);
+                left -= scrollOffset.x;
 
                 // Vertical: preferir abaixo, senão acima
                 let top = rectBottom + TOOLBAR_H + 8;
                 if (rectBottom + TOOLBAR_H + PANEL_H + 8 > ch + TOOLBAR_H + 80) {
                   top = Math.max(TOOLBAR_H, rectTop + TOOLBAR_H - PANEL_H - 8);
                 }
+                top -= scrollOffset.y;
 
                 return (
                   <motion.div
