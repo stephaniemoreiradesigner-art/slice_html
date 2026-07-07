@@ -4,39 +4,53 @@ const sharp = require('sharp');
 const { uploadBuffer } = require('../config/supabaseStorage');
 
 /**
- * Dado um array de zonas, gera uma grade de células
- * baseada nos limites de cada zona (x, y, width, height).
+ * Gera as bandas horizontais da imagem.
+ *
+ * Diferente da versão anterior (grade global), os cortes verticais (eixo X)
+ * são aplicados SOMENTE dentro da banda horizontal que contém uma zona.
+ * Bandas sem zona viram uma única fatia full-width — isso elimina as
+ * linhas verticais que cortavam o e-mail inteiro quando o cliente de
+ * e-mail (Gmail, Outlook) redimensionava as fatias com arredondamentos
+ * diferentes.
  */
 function buildGrid(zones, imgWidth, imgHeight) {
-  const xSet = new Set([0, imgWidth]);
+  // Cortes horizontais globais (limites superior/inferior de cada zona)
   const ySet = new Set([0, imgHeight]);
-
   zones.forEach((z) => {
-    xSet.add(Math.round(z.x));
-    xSet.add(Math.round(z.x + z.width));
-    ySet.add(Math.round(z.y));
-    ySet.add(Math.round(z.y + z.height));
+    ySet.add(Math.max(0, Math.min(imgHeight, Math.round(z.y))));
+    ySet.add(Math.max(0, Math.min(imgHeight, Math.round(z.y + z.height))));
   });
-
-  const xs = [...xSet].sort((a, b) => a - b);
   const ys = [...ySet].sort((a, b) => a - b);
 
   const rows = [];
   for (let r = 0; r < ys.length - 1; r++) {
+    const cy = ys[r];
+    const ch = ys[r + 1] - ys[r];
+    if (ch <= 0) continue;
+
+    // Zonas que cobrem verticalmente esta banda por completo
+    const bandZones = zones.filter(
+      (z) => Math.round(z.y) <= cy && Math.round(z.y + z.height) >= cy + ch
+    );
+
+    // Cortes verticais apenas desta banda
+    const xSet = new Set([0, imgWidth]);
+    bandZones.forEach((z) => {
+      xSet.add(Math.max(0, Math.min(imgWidth, Math.round(z.x))));
+      xSet.add(Math.max(0, Math.min(imgWidth, Math.round(z.x + z.width))));
+    });
+    const xs = [...xSet].sort((a, b) => a - b);
+
     const cells = [];
     for (let c = 0; c < xs.length - 1; c++) {
       const cx = xs[c];
-      const cy = ys[r];
       const cw = xs[c + 1] - xs[c];
-      const ch = ys[r + 1] - ys[r];
+      if (cw <= 0) continue;
 
-      // Encontra a zona que contém esta célula completamente
-      const zone = zones.find(
+      const zone = bandZones.find(
         (z) =>
-          z.x <= cx &&
-          z.y <= cy &&
-          z.x + z.width >= cx + cw &&
-          z.y + z.height >= cy + ch
+          Math.round(z.x) <= cx &&
+          Math.round(z.x + z.width) >= cx + cw
       );
 
       cells.push({
@@ -63,7 +77,29 @@ function buildGrid(zones, imgWidth, imgHeight) {
 }
 
 /**
- * Gera o código HTML em formato de tabela compatível com email
+ * Converte a cor dominante de uma região da imagem em hex.
+ * Usada como fundo automático das zonas de texto, para que qualquer
+ * variação de altura do texto (nomes longos que quebram linha) apareça
+ * na cor do layout em vez de branco.
+ */
+async function sampleDominantColor(inputBuffer, region) {
+  try {
+    const stats = await sharp(inputBuffer)
+      .extract({ left: region.x, top: region.y, width: region.width, height: region.height })
+      .stats();
+    const { r, g, b } = stats.dominant;
+    const hex = (n) => n.toString(16).padStart(2, '0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+  } catch {
+    return '#000000';
+  }
+}
+
+/**
+ * Gera o código HTML em formato de tabela compatível com e-mail.
+ * Cada banda horizontal é uma <tr> com uma tabela aninhada própria,
+ * permitindo números de colunas diferentes por banda sem que os
+ * clientes de e-mail tentem alinhar colunas entre bandas.
  */
 function generateEmailHTML(gridRows, totalWidth) {
   let html = `<!-- SlicerMail Pro - Gerado automaticamente -->
@@ -73,22 +109,31 @@ function generateEmailHTML(gridRows, totalWidth) {
 <table width="${totalWidth}" align="center" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;margin:0 auto;">`;
 
   for (const row of gridRows) {
-    html += '\n  <tr>';
+    html += `\n  <tr>\n    <td width="${totalWidth}" style="padding:0;margin:0;border:0;line-height:0;font-size:0;">`;
+    html += `\n      <table width="${totalWidth}" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">\n        <tr>`;
+
     for (const cell of row) {
       if (cell.type === 'text') {
-        const bgStyle = cell.backgroundColor && cell.backgroundColor !== 'transparent'
-          ? `background-color:${cell.backgroundColor};`
-          : '';
-        html += `\n    <td width="${cell.width}" height="${cell.height}" valign="middle" style="padding:10px 15px;${bgStyle}font-family:${cell.fontFamily};font-size:${cell.fontSize}px;font-weight:${cell.fontWeight};color:${cell.fontColor};text-align:${cell.textAlign};line-height:1.3;">${cell.variable}</td>`;
+        const fontSizePx = parseInt(cell.fontSize, 10) || 16;
+        // line-height proporcional à fonte (não à altura da célula):
+        // se o texto quebrar em duas linhas, cresce ~20% de uma linha
+        // em vez de dobrar a altura da banda inteira.
+        const lineHeight = Math.round(fontSizePx * 1.2);
+        const bg = cell.backgroundColor && cell.backgroundColor !== 'transparent'
+          ? cell.backgroundColor
+          : '#000000';
+        html += `\n          <td width="${cell.width}" height="${cell.height}" valign="middle" bgcolor="${bg}" style="padding:0;background-color:${bg};font-family:${cell.fontFamily};font-size:${fontSizePx}px;font-weight:${cell.fontWeight};color:${cell.fontColor};text-align:${cell.textAlign};line-height:${lineHeight}px;mso-line-height-rule:exactly;">${cell.variable}</td>`;
       } else {
-        const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
+        const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:${cell.height}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
         const content = cell.link
           ? `<a href="${cell.link}" target="_blank" style="display:block;text-decoration:none;border:0;">${imgTag}</a>`
           : imgTag;
-        html += `\n    <td width="${cell.width}" height="${cell.height}" valign="top" style="padding:0;margin:0;border:0;line-height:0;font-size:0;">${content}</td>`;
+        html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" style="padding:0;margin:0;border:0;line-height:0;font-size:0;">${content}</td>`;
       }
     }
-    html += '\n  </tr>';
+
+    html += '\n        </tr>\n      </table>';
+    html += '\n    </td>\n  </tr>';
   }
 
   html += '\n</table>\n    </td>\n  </tr>\n</table>';
@@ -123,7 +168,7 @@ router.post('/', async (req, res) => {
     const imgWidth = metadata.width;
     const imgHeight = metadata.height;
 
-    // Gera grade de células
+    // Gera bandas horizontais com cortes verticais locais
     const gridRows = buildGrid(zones, imgWidth, imgHeight);
 
     // Processa cada célula: crop + upload para o Supabase Storage
@@ -134,8 +179,13 @@ router.post('/', async (req, res) => {
       for (const cell of row) {
         if (cell.type === 'text') {
           cell.imageUrl = null;
+          // Fundo automático: amostra a cor dominante da região original
+          // quando o usuário deixou o fundo como "transparent".
+          if (!cell.backgroundColor || cell.backgroundColor === 'transparent') {
+            cell.backgroundColor = await sampleDominantColor(inputBuffer, cell);
+          }
           uploadCount++;
-          console.log(`Célula ${uploadCount}/${totalCells} é zona de texto — sem upload.`);
+          console.log(`Célula ${uploadCount}/${totalCells} é zona de texto — fundo ${cell.backgroundColor}, sem upload.`);
           continue;
         }
         const cropBuffer = await sharp(inputBuffer)
