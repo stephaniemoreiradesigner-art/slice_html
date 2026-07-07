@@ -41,6 +41,7 @@ sem precisar caçar no histórico.
 | 1.0.0 | `e74924d` | Zoom no editor de zonas (Step3Canvas) — pré-versionamento |
 | 1.1.0 | *(a commitar)* | Versionamento passa a ser rastreado: `client/package.json` como fonte única, exibido no header via `APP_VERSION` |
 | 1.1.1 | *(a commitar)* | fix: caixa branca em fatias de imagem no Gmail mobile — `background-color` estava só no `<td>`, faltava na própria tag `<img>` (quando a imagem falha de verdade em vez de só demorar, alguns webviews pintam a caixa quebrada de branco por cima do fundo do `<td>`) |
+| 1.1.2 | *(a commitar)* | fix: fatias estreitas de cor lisa (margens ao lado de botões/textos, largura < ~100px) deixam de virar `<img>` — causa raiz real da caixa branca no Gmail mobile (imagem falhava ao carregar). Agora `analyzeRegion` mede o desvio-padrão de cor da região; se for uniforme e não tiver link, vira `<td bgcolor>` sólido, sem upload nem dependência de rede. Layout (largura/altura) não muda |
 
 *(As três primeiras linhas já foram commitadas antes desta regra existir —
 por isso ainda aparecem como v1.0.0. A partir da v1.1.0 em diante, todo

@@ -95,6 +95,42 @@ async function sampleDominantColor(inputBuffer, region) {
   }
 }
 
+// Abaixo do qual o desvio-padrão médio dos canais RGB é considerado "cor
+// lisa/uniforme" (região sem detalhe visual real, só preenchimento).
+const FLAT_STDEV_THRESHOLD = 6;
+
+/**
+ * Analisa uma região e devolve a cor dominante + se ela é "lisa"
+ * (uniforme o suficiente para não precisar virar um <img> de verdade).
+ *
+ * Motivação: fatias muito estreitas (colunas de margem/enquadramento ao
+ * lado de botões e textos) tendem a ser só preenchimento de cor sólida.
+ * Nos testes em campo, exatamente essas fatias finas e uniformes vinham
+ * aparecendo como caixas brancas no Gmail mobile — a imagem falha ao
+ * carregar (provavelmente o proxy de imagens trata PNGs muito pequenos/
+ * uniformes de forma inconsistente) mesmo com o bgcolor de segurança no
+ * <td>. Em vez de tentar mascarar a falha, a fatia lisa deixa de ser uma
+ * imagem: vira uma célula de cor sólida, sem nenhuma dependência de rede,
+ * com a mesma largura/altura exatas — o layout não muda em nada.
+ */
+async function analyzeRegion(inputBuffer, region) {
+  try {
+    const stats = await sharp(inputBuffer)
+      .extract({ left: region.x, top: region.y, width: region.width, height: region.height })
+      .stats();
+    const { r, g, b } = stats.dominant;
+    const hex = (n) => n.toString(16).padStart(2, '0');
+    const avgStdev =
+      (stats.channels[0].stdev + stats.channels[1].stdev + stats.channels[2].stdev) / 3;
+    return {
+      color: `#${hex(r)}${hex(g)}${hex(b)}`,
+      isFlat: avgStdev < FLAT_STDEV_THRESHOLD,
+    };
+  } catch {
+    return { color: '#000000', isFlat: false };
+  }
+}
+
 /**
  * Gera o código HTML em formato de tabela compatível com e-mail.
  * Cada banda horizontal é uma <tr> com uma tabela aninhada própria,
@@ -138,6 +174,15 @@ function generateEmailHTML(gridRows, totalWidth) {
         // background-color na própria <img>, a "caixa branca" reaparece
         // mesmo com o <td> corrigido.
         const bg = cell.backgroundColor || '#000000';
+
+        // Fatia lisa (cor uniforme, sem link): nem tenta virar <img>.
+        // Sem upload, sem URL externa, sem chance de "falhar ao carregar" —
+        // é só um <td> da cor certa, com a mesma largura/altura de sempre.
+        if (cell.isFlat) {
+          html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" bgcolor="${bg}" style="padding:0;margin:0;border:0;line-height:0;font-size:0;background-color:${bg};">&nbsp;</td>`;
+          continue;
+        }
+
         const imgTag = `<img src="${cell.imageUrl}" width="${cell.width}" height="${cell.height}" alt="${cell.alt}" style="display:block;width:${cell.width}px;height:${cell.height}px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;background-color:${bg};" />`;
         const content = cell.link
           ? `<a href="${cell.link}" target="_blank" style="display:block;text-decoration:none;border:0;">${imgTag}</a>`
@@ -202,6 +247,19 @@ router.post('/', async (req, res) => {
           console.log(`Célula ${uploadCount}/${totalCells} é zona de texto — fundo ${cell.backgroundColor}, sem upload.`);
           continue;
         }
+        // Analisa a região ANTES de decidir se vale a pena virar upload:
+        // fatia lisa (sem link) não precisa de imagem nenhuma.
+        const { color, isFlat } = await analyzeRegion(inputBuffer, cell);
+        cell.backgroundColor = color;
+
+        if (isFlat && !cell.link) {
+          cell.imageUrl = null;
+          cell.isFlat = true;
+          uploadCount++;
+          console.log(`Célula ${uploadCount}/${totalCells} é região lisa (${color}) — vira <td> de cor sólida, sem upload.`);
+          continue;
+        }
+
         const cropBuffer = await sharp(inputBuffer)
           .extract({
             left: cell.x,
@@ -211,11 +269,6 @@ router.post('/', async (req, res) => {
           })
           .png()
           .toBuffer();
-
-        // mesma amostragem de cor dominante usada nas zonas de texto,
-        // agora aplicada às fatias de imagem para servir de bgcolor
-        // de segurança contra hairlines de arredondamento.
-        cell.backgroundColor = await sampleDominantColor(inputBuffer, cell);
 
         const uploadResult = await uploadBuffer(cropBuffer);
         cell.imageUrl = uploadResult.secure_url;
