@@ -178,8 +178,16 @@ function generateEmailHTML(gridRows, totalWidth) {
         // Fatia lisa (cor uniforme, sem link): nem tenta virar <img>.
         // Sem upload, sem URL externa, sem chance de "falhar ao carregar" —
         // é só um <td> da cor certa, com a mesma largura/altura de sempre.
+        //
+        // IMPORTANTE: como não há mais <img> pra forçar a altura da célula,
+        // não dá pra confiar só no atributo HTML `height` (clientes como o
+        // Gmail nem sempre respeitam esse atributo legado sem reforço via
+        // CSS) nem no `&nbsp;` com font-size:0 (o texto zerado pode colapsar
+        // a altura da linha a zero). Por isso a altura também vai explícita
+        // no `style` (height + line-height iguais à altura da célula), com
+        // o `&nbsp;` num font-size mínimo em vez de zerado.
         if (cell.isFlat) {
-          html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" bgcolor="${bg}" style="padding:0;margin:0;border:0;line-height:0;font-size:0;background-color:${bg};">&nbsp;</td>`;
+          html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" bgcolor="${bg}" style="padding:0;margin:0;border:0;width:${cell.width}px;height:${cell.height}px;line-height:${cell.height}px;font-size:1px;mso-line-height-rule:exactly;background-color:${bg};">&nbsp;</td>`;
           continue;
         }
 
