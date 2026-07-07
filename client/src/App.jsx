@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { version as APP_VERSION } from '../package.json';
 import StepIndicator from './components/StepIndicator';
 import Step1Welcome from './components/Step1Welcome';
 import Step2Upload from './components/Step2Upload';
@@ -144,7 +145,7 @@ export default function App() {
           </div>
           <span className="font-bold text-lg text-white tracking-tight">SlicerMail Pro</span>
         </div>
-        <span className="text-xs text-slate-500 font-medium">v1.0.0</span>
+        <span className="text-xs text-slate-500 font-medium">v{APP_VERSION}</span>
       </header>
 
       {/* Step Indicator */}
