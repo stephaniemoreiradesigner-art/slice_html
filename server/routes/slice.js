@@ -84,9 +84,17 @@ function buildGrid(zones, imgWidth, imgHeight) {
  */
 async function sampleDominantColor(inputBuffer, region) {
   try {
-    const stats = await sharp(inputBuffer)
+    // IMPORTANTE: sharp/libvips não recorta de verdade quando `.extract()`
+    // é encadeado direto com `.stats()` na mesma pipeline — o `.stats()`
+    // acaba lendo a imagem inteira, não a região recortada (bug verificado
+    // isoladamente: duas metades de cores opostas de uma mesma imagem
+    // devolviam a mesma `dominant`/`stdev` quando encadeados assim). É
+    // preciso materializar o recorte num buffer novo e só então rodar
+    // `.stats()` numa pipeline `sharp()` fresca sobre esse buffer.
+    const cropped = await sharp(inputBuffer)
       .extract({ left: region.x, top: region.y, width: region.width, height: region.height })
-      .stats();
+      .toBuffer();
+    const stats = await sharp(cropped).stats();
     const { r, g, b } = stats.dominant;
     const hex = (n) => n.toString(16).padStart(2, '0');
     return `#${hex(r)}${hex(g)}${hex(b)}`;
@@ -115,9 +123,14 @@ const FLAT_STDEV_THRESHOLD = 6;
  */
 async function analyzeRegion(inputBuffer, region) {
   try {
-    const stats = await sharp(inputBuffer)
+    // Mesmo cuidado de sampleDominantColor: materializa o recorte antes de
+    // rodar stats(), senão a análise "por região" na prática analisa a
+    // imagem inteira — era essa a causa real do bgcolor errado (não a
+    // heurística de coluna estreita em si).
+    const cropped = await sharp(inputBuffer)
       .extract({ left: region.x, top: region.y, width: region.width, height: region.height })
-      .stats();
+      .toBuffer();
+    const stats = await sharp(cropped).stats();
     const { r, g, b } = stats.dominant;
     const hex = (n) => n.toString(16).padStart(2, '0');
     const avgStdev =
@@ -129,6 +142,123 @@ async function analyzeRegion(inputBuffer, region) {
   } catch {
     return { color: '#000000', isFlat: false };
   }
+}
+
+// Distância euclidiana entre duas cores RGB — usada pra decidir se duas
+// faixas horizontais vizinhas são "a mesma cor" (ruído/textura) ou uma
+// transição real entre duas cores de fundo diferentes.
+function colorDistance(a, b) {
+  return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+}
+
+// Altura de cada faixa de sondagem ao escanear uma coluna estreita na
+// vertical em busca de transições de cor.
+const PROBE_HEIGHT = 6;
+
+// Diferença de cor (distância euclidiana em RGB) acima da qual duas
+// faixas de sondagem adjacentes contam como cores distintas.
+const BAND_COLOR_DISTANCE_THRESHOLD = 30;
+
+// Segmentos mais finos que isso são fundidos com o vizinho — evita gerar
+// um <tr> extra por causa de 1-2px de ruído (sombra, anti-aliasing).
+const MIN_BAND_HEIGHT = 12;
+
+// Número máximo de segmentos aceitos. Se, mesmo depois de fundir faixas
+// de cor parecida, a coluna ainda tiver mais transições que isso, ela tem
+// detalhe real demais (textura, foto) pra virar cor sólida com segurança —
+// nesse caso caímos de volta pra uma cor média única (comportamento
+// anterior), em vez de gerar HTML inchado com muitos <tr>.
+const MAX_BANDS = 6;
+
+/**
+ * Analisa uma coluna estreita (margem que será "achatada" em <td bgcolor>
+ * sólido) procurando transições verticais de cor.
+ *
+ * Motivação (bug de campo, campanha Massa Bruta x Athletico-PR, 08/jul):
+ * `analyzeRegion` tira UMA cor dominante pra região inteira. Isso funciona
+ * bem quando a margem é uniforme do topo ao fim (ex.: ao lado de um botão
+ * sobre fundo vermelho sólido). Mas quando essa mesma margem estreita
+ * atravessa DUAS cores de fundo diferentes na vertical — por exemplo, uma
+ * moldura clara de foto seguida por um card azul-marinho escuro — a média
+ * das duas não bate com nenhuma delas, e sobra uma mancha visível
+ * exatamente na transição (o defeito reportado nos cantos arredondados da
+ * foto do Convém).
+ *
+ * Em vez de assumir uma cor só pra coluna inteira, sondamos a coluna em
+ * faixas finas, agrupamos faixas de cor parecida em segmentos maiores e
+ * devolvemos um segmento por transição real. Cada segmento continua sendo
+ * um <td> sólido — sem upload, sem URL externa, sem chance de "falhar ao
+ * carregar" — só que empilhados dentro da mesma célula em vez de forçados
+ * numa cor única.
+ */
+async function analyzeColumnBands(inputBuffer, region) {
+  const whole = await analyzeRegion(inputBuffer, region);
+
+  // Coluna já uniforme de ponta a ponta: caminho rápido, sem sondagem
+  // extra — mesmo custo e resultado de antes.
+  if (whole.isFlat) {
+    return { bands: [{ height: region.height, color: whole.color }] };
+  }
+
+  // Sonda a coluna em faixas finas ao longo da altura.
+  const probes = [];
+  for (let y = 0; y < region.height; y += PROBE_HEIGHT) {
+    const h = Math.min(PROBE_HEIGHT, region.height - y);
+    try {
+      const cropped = await sharp(inputBuffer)
+        .extract({ left: region.x, top: region.y + y, width: region.width, height: h })
+        .toBuffer();
+      const stats = await sharp(cropped).stats();
+      const { r, g, b } = stats.dominant;
+      probes.push({ height: h, r, g, b });
+    } catch {
+      // Faixa fora dos limites por arredondamento: repete a cor anterior
+      // em vez de deixar um buraco na sondagem.
+      const prev = probes[probes.length - 1];
+      probes.push({ height: h, r: prev?.r ?? 0, g: prev?.g ?? 0, b: prev?.b ?? 0 });
+    }
+  }
+
+  // Agrupa faixas de cor parecida em segmentos contíguos.
+  const segments = [];
+  for (const p of probes) {
+    const last = segments[segments.length - 1];
+    if (last && colorDistance(last, p) <= BAND_COLOR_DISTANCE_THRESHOLD) {
+      last.height += p.height;
+      last.r = (last.r + p.r) / 2;
+      last.g = (last.g + p.g) / 2;
+      last.b = (last.b + p.b) / 2;
+    } else {
+      segments.push({ height: p.height, r: p.r, g: p.g, b: p.b });
+    }
+  }
+
+  // Funde segmentos curtos demais (provável ruído) com o vizinho.
+  for (let i = segments.length - 1; i > 0; i--) {
+    if (segments[i].height < MIN_BAND_HEIGHT) {
+      segments[i - 1].height += segments[i].height;
+      segments.splice(i, 1);
+    }
+  }
+
+  // Nenhuma transição real encontrada, ou detalhe demais pra confiar —
+  // volta pro comportamento anterior (cor média única), que é seguro.
+  if (segments.length <= 1 || segments.length > MAX_BANDS) {
+    return { bands: [{ height: region.height, color: whole.color }] };
+  }
+
+  // Garante que a soma das faixas bate exatamente com a altura original
+  // (evita 1px de sobra/falta por arredondamento da sondagem).
+  const sumH = segments.reduce((s, seg) => s + seg.height, 0);
+  segments[segments.length - 1].height += region.height - sumH;
+
+  const hex = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  const bands = segments.map((seg) => ({
+    height: Math.round(seg.height),
+    color: `#${hex(seg.r)}${hex(seg.g)}${hex(seg.b)}`,
+  }));
+
+  return { bands };
 }
 
 /**
@@ -187,7 +317,25 @@ function generateEmailHTML(gridRows, totalWidth) {
         // no `style` (height + line-height iguais à altura da célula), com
         // o `&nbsp;` num font-size mínimo em vez de zerado.
         if (cell.isFlat) {
-          html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" bgcolor="${bg}" style="padding:0;margin:0;border:0;width:${cell.width}px;height:${cell.height}px;line-height:${cell.height}px;font-size:1px;mso-line-height-rule:exactly;background-color:${bg};">&nbsp;</td>`;
+          const bands = cell.colorBands && cell.colorBands.length
+            ? cell.colorBands
+            : [{ height: cell.height, color: bg }];
+
+          if (bands.length === 1) {
+            html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" bgcolor="${bg}" style="padding:0;margin:0;border:0;width:${cell.width}px;height:${cell.height}px;line-height:${cell.height}px;font-size:1px;mso-line-height-rule:exactly;background-color:${bg};">&nbsp;</td>`;
+            continue;
+          }
+
+          // Coluna com transição de cor real detectada por
+          // analyzeColumnBands: empilha um <td> sólido por segmento numa
+          // tabela aninhada de uma coluna só, dentro da mesma célula —
+          // largura e altura totais da linha não mudam em nada.
+          let inner = `<table width="${cell.width}" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">`;
+          for (const band of bands) {
+            inner += `\n              <tr><td width="${cell.width}" height="${band.height}" valign="top" bgcolor="${band.color}" style="padding:0;margin:0;border:0;width:${cell.width}px;height:${band.height}px;line-height:${band.height}px;font-size:1px;mso-line-height-rule:exactly;background-color:${band.color};">&nbsp;</td></tr>`;
+          }
+          inner += '\n            </table>';
+          html += `\n          <td width="${cell.width}" height="${cell.height}" valign="top" style="padding:0;margin:0;border:0;line-height:0;font-size:0;">${inner}</td>`;
           continue;
         }
 
@@ -268,14 +416,28 @@ router.post('/', async (req, res) => {
         // qualquer coluna de margem sem link e com até 100px de largura
         // também vira <td> de cor sólida, independente da variação de cor.
         const NARROW_WIDTH_THRESHOLD = 100;
-        const treatAsFlat = isFlat || cell.width <= NARROW_WIDTH_THRESHOLD;
+        const forcedFlat = !isFlat && cell.width <= NARROW_WIDTH_THRESHOLD;
+        const treatAsFlat = isFlat || forcedFlat;
 
         if (treatAsFlat && !cell.link) {
           cell.imageUrl = null;
           cell.isFlat = true;
+
+          if (forcedFlat) {
+            // Coluna estreita mas NÃO uniforme: pode ter uma transição de
+            // cor vertical real (ex.: moldura de foto seguida de um card
+            // escuro). Sonda em faixas em vez de usar só a média da
+            // região inteira, que é o que causava as manchas na costura.
+            const { bands } = await analyzeColumnBands(inputBuffer, cell);
+            cell.colorBands = bands;
+          } else {
+            cell.colorBands = [{ height: cell.height, color }];
+          }
+
           uploadCount++;
           const motivo = isFlat ? 'região lisa' : `largura ${cell.width}px ≤ ${NARROW_WIDTH_THRESHOLD}px`;
-          console.log(`Célula ${uploadCount}/${totalCells} é ${motivo} (${color}) — vira <td> de cor sólida, sem upload.`);
+          const bandInfo = cell.colorBands.length > 1 ? ` em ${cell.colorBands.length} faixas de cor` : '';
+          console.log(`Célula ${uploadCount}/${totalCells} é ${motivo} (${color}${bandInfo}) — vira <td> de cor sólida, sem upload.`);
           continue;
         }
 
